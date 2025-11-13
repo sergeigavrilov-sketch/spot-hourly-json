@@ -2,7 +2,7 @@ name: Convert spot prices to hourly
 
 on:
   schedule:
-    - cron: "0 * * * *" # запуск каждый час
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 jobs:
@@ -26,7 +26,6 @@ jobs:
           mkdir -p public
           python3 - << 'EOF'
           import requests, json, datetime, pytz
-
           url = "https://spot.utilitarian.io/electricity/FI/latest/"
           data = requests.get(url).json()
           tz = pytz.timezone("Europe/Helsinki")
