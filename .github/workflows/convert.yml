@@ -2,18 +2,16 @@ name: Convert spot prices to hourly
 
 on:
   schedule:
-    - cron: "0 * * * *" # каждый час
-  workflow_dispatch:    # запуск вручную
+    - cron: "0 * * * *"  # каждый час
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -21,26 +19,41 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests pytz
 
-      - name: Run conversion script
+      - name: Create hourly.json for Pages
         run: |
+          mkdir -p _site
           python3 - << 'EOF'
-          import requests, json, datetime
-          url = "https://api.spot-hinta.fi/Today"
+          import requests, json, datetime, pytz
+          url = "https://spot.utilitarian.io/electricity/FI/latest/"
           data = requests.get(url).json()
-          result = {str(i): round(item["PriceWithTax"], 4) for i, item in enumerate(data)}
-          with open("hourly.json", "w") as f:
-              json.dump(result, f, indent=2)
-          print("hourly.json created:", len(result), "entries")
+          tz = pytz.timezone("Europe/Helsinki")
+          hours = {}
+          for i in range(0, len(data), 4):
+              block = data[i:i+4]
+              avg = sum(float(x["value"]) for x in block) / len(block)
+              t = datetime.datetime.fromisoformat(block[0]["timestamp"]).astimezone(tz)
+              hours[f"{i//4}.0"] = {
+                  "time": t.strftime("%Y-%m-%d %H:%M:%S%z"),
+                  "price": round(avg, 3)
+              }
+          output = {
+              "hourly_prices": hours,
+              "meta": {
+                  "bidding_zone": "FI",
+                  "timezone": "Europe/Helsinki",
+                  "generated_at": datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S%z"),
+                  "units": "EUR/MWh",
+                  "resolution": "1H"
+              }
+          }
+          with open("_site/hourly.json", "w") as f:
+              json.dump(output, f, indent=2)
           EOF
 
-      - name: Commit and push
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git add hourly.json
-          git commit -m "Update hourly.json" || echo "No changes to commit"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./_site
