@@ -2,31 +2,45 @@ name: Convert spot prices to hourly
 
 on:
   schedule:
-    - cron: "0 * * * *"   # запуск каждый час
-  workflow_dispatch:
+    - cron: "0 * * * *" # каждый час
+  workflow_dispatch:    # запуск вручную
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.x
+          python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install requests pytz
+        run: pip install requests
 
-      - name: Run converter
-        run: python convert.py
+      - name: Run conversion script
+        run: |
+          python3 - << 'EOF'
+          import requests, json, datetime
+          url = "https://api.spot-hinta.fi/Today"
+          data = requests.get(url).json()
+          result = {str(i): round(item["PriceWithTax"], 4) for i, item in enumerate(data)}
+          with open("hourly.json", "w") as f:
+              json.dump(result, f, indent=2)
+          print("hourly.json created:", len(result), "entries")
+          EOF
 
       - name: Commit and push
         run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
           git add hourly.json
-          git commit -m "update hourly prices" || echo "no changes"
-          git push
+          git commit -m "Update hourly.json" || echo "No changes to commit"
+          git push origin main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
