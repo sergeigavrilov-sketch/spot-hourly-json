@@ -2,18 +2,17 @@ name: Convert spot prices to hourly
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: "0 * * * *" # каждый час
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
@@ -24,7 +23,7 @@ jobs:
       - name: Generate hourly.json
         run: |
           mkdir -p public
-          python3 - << 'EOF'
+          python3 - <<'EOF'
           import requests, json, datetime, pytz
           url = "https://spot.utilitarian.io/electricity/FI/latest/"
           data = requests.get(url).json()
@@ -57,3 +56,5 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
+          # ветка gh-pages, не main
+          publish_branch: gh-pages
